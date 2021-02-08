@@ -1,0 +1,28 @@
+version: '3'
+services:
+  # Example-App
+  example-app-service:
+    image: example-api-service
+    build:
+      context: .
+      dockerfile: deploy/local.dockerfile
+    volumes:
+      - .:/code
+      - /code/node_modules
+    environment:
+      MONGODB_URI: example-app-db ## Todo: Should be done via configmap so build pipelines are stateless
+      NODE_ENV: production ## ToDo: Debt. Static mongo route coded if env is not production
+      SECRET: secret  ## Todo: Should be done via secrets
+    command: "npm run start"
+    depends_on:
+      - example-app-db
+    ports:
+      - 3000
+  # Example App Db. Mongo db. 
+  example-app-db:
+    image: mongo:3.6.21-xenial
+    restart: always
+    volumes:
+    - "example-app-db-data:/data/db"
+volumes:
+  example-app-db-data: {}
