@@ -40,6 +40,7 @@ node {
         ])
         sh('helm lint ' + chartName)
         // ToDo: Ideally there should be a bake stage here. That gathers configs, secrets and values from whatever config manager is being used.
+        // And chart should be packaged and hosted for history
 
         
     }
