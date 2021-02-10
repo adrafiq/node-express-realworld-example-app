@@ -1,10 +1,51 @@
-pipeline {
-  agent { dockerfile true}
-  stages {
-        stage('Test') { 
-            steps {
-                sh 'npm run test' 
-            }
-        }
+node {
+    def commitHash = sh(script: "git log -n 1 --pretty=format:'%h'",returnStdout: true)
+    def registryCredential = 'dockerhub'
+    def repository = 'adrafiq/swvl-api'
+    def imageTag = repository + commitHash
+    def chartName = 'swvl-api'
+    
+    
+    stage 'Fetch Release'
+    checkout([
+        $class: 'GitSCM', 
+        branches: [[name: '*/master']], 
+        doGenerateSubmoduleConfigurations: false, 
+        extensions: [[$class: 'CleanCheckout']], 
+        submoduleCfg: [], 
+        userRemoteConfigs: [[credentialsId: '9dbd83e5-ea10-45db-8e2e-ceac1860a1c7', url: 'https://github.com/adrafiq/node-express-realworld-example-app.git']]
+    ])
+
+    
+    stage ('Run Tests')
+    docker.build( imageTag + ' -f deploy/test.dockerfile')
+
+
+    stage 'Build Image for production'
+    docker.build( imageTag + ' -f deploy/Dockerfile')
+    docker.withRegistry( '', registryCredential ) {
+        def dockerImage = docker.image(imageTag)
+        dockerImage.push()
     }
+
+    stage 'Create deployment artifacts'
+    dir('artifacts') {
+        checkout([
+            $class: 'GitSCM', 
+            branches: [[name: '*/master']], 
+            doGenerateSubmoduleConfigurations: false, 
+            extensions: [[$class: 'CleanCheckout']], 
+            submoduleCfg: [], 
+            userRemoteConfigs: [[credentialsId: '9dbd83e5-ea10-45db-8e2e-ceac1860a1c7', url: 'https://github.com/adrafiq/task-charts.git']]
+        ])
+        sh('helm lint ' + chartName)
+        // ToDo: Ideally there should be a bake stage here. That gathers configs, secrets and values from whatever config manager is being used.
+
+        
+    }
+
+    
+    stage 'Deploy'
+    sh('helm install example-api ./'+ chartName +' --dry-run --set image.repository='+repository+ ' --set image.tag='+ commitHash)
+    
 }
